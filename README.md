@@ -1,4 +1,4 @@
-# Лабораторна: нелінійні функції та увага
+# Лабораторна: нелінійні функції та attention
 
 Відкрийте [attention.ipynb](attention.ipynb) у Jupyter або
 [attention.py](attention.py) як Python-файл із комірками `# %%`. Після
@@ -9,7 +9,5 @@
 Готові графіки в `figures/` допомагають порівняти ReLU (синя лінія) і GELU
 (помаранчева) та побачити ваги `softmax([x, 0])` залежно від `x` (синя —
 перший елемент, помаранчева — другий).
-Відтворення JPG: `python3 plot_figures.py`
-(потрібен `ffmpeg`).
 
 Після зміни `attention.py` оновіть ноутбук командою `python3 make_notebook.py`.
