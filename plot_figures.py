@@ -1,62 +1,52 @@
-"""Generate worksheet figures; JPGs require ffmpeg."""
+"""Generate labeled SVG figures for the worksheet using standard Python."""
 
 import math
-import subprocess
-import tempfile
+from html import escape
 from pathlib import Path
 
-WIDTH, HEIGHT = 900, 560
-INK = (35, 50, 70)
-BLUE = (37, 100, 200)
-ORANGE = (225, 90, 42)
-GRID = (220, 225, 232)
-
-
-class Canvas:
-    def __init__(self):
-        self.pixels = bytearray([255, 255, 255] * WIDTH * HEIGHT)
-
-    def dot(self, x, y, color, radius=2):
-        x, y = round(x), HEIGHT - 1 - round(y)
-        for yy in range(max(0, y - radius), min(HEIGHT, y + radius + 1)):
-            for xx in range(max(0, x - radius), min(WIDTH, x + radius + 1)):
-                offset = 3 * (yy * WIDTH + xx)
-                self.pixels[offset:offset + 3] = bytes(color)
-
-    def line(self, x0, y0, x1, y1, color, radius=1):
-        steps = max(1, math.ceil(max(abs(x1-x0), abs(y1-y0))))
-        for step in range(steps + 1):
-            t = step / steps
-            self.dot(x0 + (x1-x0)*t, y0 + (y1-y0)*t, color, radius)
-
-    def curve(self, points, color):
-        for first, second in zip(points, points[1:]):
-            self.line(*first, *second, color)
-
-    def axes(self):
-        for y in (100, 188, 275, 362, 450):
-            self.line(100, y, 820, y, GRID, 0)
-        self.line(100, 100, 100, 450, INK, 0)
-        self.line(100, 100, 820, 100, INK, 0)
-
-    def bar(self, x, height, color):
-        for xx in range(x, x + 55):
-            self.line(xx, 101, xx, 100 + height, color, 0)
-
-    def save(self, destination):
-        with tempfile.TemporaryDirectory() as temporary:
-            ppm = Path(temporary) / "figure.ppm"
-            with ppm.open("wb") as output:
-                output.write(f"P6\n{WIDTH} {HEIGHT}\n255\n".encode())
-                output.write(self.pixels)
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(ppm)]
-            command += ["-frames:v", "1", "-q:v", "2", str(destination)]
-            subprocess.run(command, check=True)
+BLUE = "#2564c8"
+RED = "#d64b35"
 
 
 def softmax(scores):
     shifted = [math.exp(x - max(scores)) for x in scores]
     return [x / sum(shifted) for x in shifted]
+
+
+def plot(destination, title, xlabel, ylabel, xlim, ylim, xticks, yticks, curves):
+    left, top, width, height = 100, 110, 700, 350
+
+    def px(x):
+        return left + (x - xlim[0]) / (xlim[1] - xlim[0]) * width
+
+    def py(y):
+        return top + height - (y - ylim[0]) / (ylim[1] - ylim[0]) * height
+
+    parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" '
+             'viewBox="0 0 900 560" role="img" '
+             f'aria-label="{escape(title)}">',
+             '<rect width="900" height="560" fill="white"/>',
+             '<g font-family="sans-serif" fill="#233246">',
+             f'<text x="450" y="35" text-anchor="middle" font-size="23">{escape(title)}</text>']
+    for i, (label, color, _) in enumerate(curves):
+        x = 135 + i * 350
+        parts += [f'<line x1="{x}" y1="70" x2="{x+35}" y2="70" stroke="{color}" stroke-width="3"/>',
+                  f'<text x="{x+45}" y="76" font-size="16">{escape(label)}</text>']
+    for x in xticks:
+        parts += [f'<line x1="{px(x)}" y1="{top}" x2="{px(x)}" y2="{top+height}" stroke="#dce1e8"/>',
+                  f'<text x="{px(x)}" y="490" text-anchor="middle" font-size="15">{x:g}</text>']
+    for y in yticks:
+        parts += [f'<line x1="{left}" y1="{py(y)}" x2="{left+width}" y2="{py(y)}" stroke="#dce1e8"/>',
+                  f'<text x="85" y="{py(y)+5}" text-anchor="end" font-size="15">{y:g}</text>']
+    parts += [f'<rect x="{left}" y="{top}" width="{width}" height="{height}" fill="none" stroke="#233246"/>',
+              f'<text x="450" y="535" text-anchor="middle" font-size="18">{escape(xlabel)}</text>',
+              f'<text transform="translate(28 285) rotate(-90)" text-anchor="middle" font-size="18">{escape(ylabel)}</text>']
+    xs = [xlim[0] + i * (xlim[1]-xlim[0])/600 for i in range(601)]
+    for _, color, function in curves:
+        points = ' '.join(f'{px(x):.2f},{py(function(x)):.2f}' for x in xs)
+        parts.append(f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="3"/>')
+    parts.append('</g></svg>')
+    destination.write_text(''.join(parts), encoding='utf-8')
 
 
 def source_heatmap():
@@ -75,23 +65,16 @@ def source_heatmap():
 def main():
     output = Path("figures")
     output.mkdir(exist_ok=True)
+    plot(output / 'activations.svg', 'ReLU та GELU', 'Вхід x', 'Значення функції f(x)',
+         (-3, 3), (-0.3, 3.2), [-3, -2, -1, 0, 1, 2, 3], [0, 1, 2, 3],
+         [('ReLU(x)', BLUE, lambda x: max(0, x)),
+          ('GELU(x)', RED, lambda x: x/2*(1+math.erf(x/math.sqrt(2))))])
+    plot(output / 'softmax.svg', 'Softmax для оцінок [x, 0]', 'Перша оцінка x (друга = 0)',
+         'Вага після softmax', (-5, 5), (0, 1), [-5, -3, -1, 0, 1, 3, 5], [0, .25, .5, .75, 1],
+         [('Вага першого елемента', BLUE, lambda x: softmax([x, 0])[0]),
+          ('Вага другого елемента', RED, lambda x: softmax([x, 0])[1])])
     source_heatmap()
 
-    canvas = Canvas()
-    canvas.axes()
-    canvas.line(100, 275, 820, 275, GRID, 0)
-    canvas.line(460, 100, 460, 450, GRID, 0)
-    xs = [-3 + index / 100 for index in range(601)]
-    canvas.curve([(460 + x*120, 275 + max(0, x)*78) for x in xs], BLUE)
-    canvas.curve([(460 + x*120, 275 + 0.5*x*(1 + math.erf(x/math.sqrt(2)))*78) for x in xs], ORANGE)
-    canvas.save(output / "activations.jpg")
 
-    canvas = Canvas()
-    canvas.axes()
-    xs = [-5 + index / 50 for index in range(501)]
-    canvas.curve([(100 + (x+5)*72, 100 + softmax([x, 0])[0]*350) for x in xs], BLUE)
-    canvas.curve([(100 + (x+5)*72, 100 + softmax([x, 0])[1]*350) for x in xs], ORANGE)
-    canvas.save(output / "softmax.jpg")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
