@@ -1,4 +1,4 @@
-"""Generate the activation and softmax JPGs using Python and ffmpeg."""
+"""Generate worksheet figures; JPGs require ffmpeg."""
 
 import math
 import subprocess
@@ -59,9 +59,23 @@ def softmax(scores):
     return [x / sum(shifted) for x in shifted]
 
 
+def source_heatmap():
+    """Render the fixed example without filling in student functions."""
+    import attention as worksheet
+
+    weights = [softmax([
+        sum(q * k for q, k in zip(query, key)) / math.sqrt(len(query))
+        for key in worksheet.source_keys
+    ]) for query in worksheet.target_queries]
+    Path("figures/source_attention.svg").write_text(
+        worksheet.source_attention_svg(weights), encoding="utf-8")
+    return weights
+
+
 def main():
     output = Path("figures")
     output.mkdir(exist_ok=True)
+    source_heatmap()
 
     canvas = Canvas()
     canvas.axes()
