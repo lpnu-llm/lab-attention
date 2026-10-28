@@ -62,6 +62,44 @@ def source_heatmap():
     return weights
 
 
+
+def xor_figures():
+    """Plot exact fixed-weight ReLU scores and a linear counterexample."""
+    for name, title, score, boundary in [
+        ("xor_solution", "XOR: два шари з ReLU", lambda x, y: abs(x-y),
+         [(0, .5, .5, 1), (.5, 0, 1, .5)]),
+        ("xor_linear", "Один лінійний шар: s = x₁ + x₂", lambda x, y: x+y,
+         [(0, .5, .5, 0)]),
+    ]:
+        parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="640" height="570" viewBox="0 0 640 570" role="img" '
+                 f'aria-label="{title}"><rect width="640" height="570" fill="white"/>',
+                 f'<g font-family="sans-serif"><text x="320" y="30" text-anchor="middle" font-size="22">{title}</text>']
+        def px(x): return 80+400*x
+        def py(y): return 460-400*y
+        def color(v):
+            v = min(1, max(0, v))
+            a, b, t = ((33, 102, 172), (247, 247, 247), 2*v) if v < .5 else ((247, 247, 247), (178, 24, 43), 2*v-1)
+            return '#'+''.join(f'{round(i+(j-i)*t):02x}' for i,j in zip(a,b))
+        for i in range(80):
+            for j in range(80):
+                parts.append(f'<rect x="{px(i/80)}" y="{py((j+1)/80)}" width="5.1" height="5.1" fill="{color(score((i+.5)/80,(j+.5)/80))}"/>')
+        for x,y,u,v in boundary:
+            parts.append(f'<line x1="{px(x)}" y1="{py(y)}" x2="{px(u)}" y2="{py(v)}" stroke="black" stroke-width="2" stroke-dasharray="6 4"/>')
+        for x,y,target in [(0,0,0),(0,1,1),(1,0,1),(1,1,0)]:
+            cx,cy=px(x),py(y)
+            if target:
+                parts.append(f'<circle cx="{cx}" cy="{cy}" r="8" fill="#55ee66" stroke="white" stroke-width="3"/>')
+            else:
+                parts.append(f'<path d="M {cx} {cy-9} l 9 9 l -9 9 l -9 -9 Z" fill="#182b43" stroke="white" stroke-width="3"/>')
+        for tick in [0,.5,1]:
+            parts.append(f'<text x="{px(tick)}" y="485" text-anchor="middle">{tick:g}</text><text x="60" y="{py(tick)+5}" text-anchor="end">{tick:g}</text>')
+        for i in range(100):
+            parts.append(f'<rect x="525" y="{460-4*(i+1)}" width="20" height="4.1" fill="{color((i+.5)/100)}"/>')
+        parts.append('<text x="552" y="65">1+</text><text x="552" y="265">0.5</text><text x="552" y="465">0</text>')
+        parts.append('<text x="280" y="515" text-anchor="middle">x₁</text><text x="28" y="260">x₂</text><text x="320" y="545" text-anchor="middle">● клас 1    ◆ клас 0    – – поріг s = 0.5</text></g></svg>')
+        Path(f"figures/{name}.svg").write_text(''.join(parts), encoding="utf-8")
+
+
 def main():
     output = Path("figures")
     output.mkdir(exist_ok=True)
@@ -74,6 +112,7 @@ def main():
          [('Вага першого елемента', BLUE, lambda x: softmax([x, 0])[0]),
           ('Вага другого елемента', RED, lambda x: softmax([x, 0])[1])])
     source_heatmap()
+    xor_figures()
 
 
 if __name__ == '__main__':
