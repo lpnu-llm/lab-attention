@@ -64,13 +64,14 @@ def source_heatmap():
 
 
 def xor_figures():
-    """Plot exact fixed-weight ReLU scores and a linear counterexample."""
-    for name, title, score, boundary in [
-        ("xor_solution", "XOR: два шари з ReLU", lambda x, y: abs(x-y),
-         [(0, .5, .5, 1), (.5, 0, 1, .5)]),
-        ("xor_linear", "Один лінійний шар: s = x₁ + x₂", lambda x, y: x+y,
-         [(0, .5, .5, 0)]),
+    """Illustrate XOR targets, then overlay one illustrative linear boundary."""
+    for name, title, boundary in [
+        ("xor_target", "XOR: бажані класи", []),
+        ("xor_linear", "Одна пряма: правильно 2 з 4 точок", [(.5, 0, .5, 1)]),
     ]:
+        # Smooth target illustration only; XOR is defined at the four corners.
+        def score(x, y):
+            return (1-math.tanh(7*(x-.5))*math.tanh(7*(y-.5)))/2
         parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="640" height="570" viewBox="0 0 640 570" role="img" '
                  f'aria-label="{title}"><rect width="640" height="570" fill="white"/>',
                  f'<g font-family="sans-serif"><text x="320" y="30" text-anchor="middle" font-size="22">{title}</text>']
@@ -91,12 +92,17 @@ def xor_figures():
                 parts.append(f'<circle cx="{cx}" cy="{cy}" r="8" fill="#55ee66" stroke="white" stroke-width="3"/>')
             else:
                 parts.append(f'<path d="M {cx} {cy-9} l 9 9 l -9 9 l -9 -9 Z" fill="#182b43" stroke="white" stroke-width="3"/>')
+        if boundary:
+            for x,y,target in [(0,0,0),(0,1,1),(1,0,1),(1,1,0)]:
+                correct = int(x > .5) == target
+                parts.append(f'<text x="{px(x)+ (16 if x == 0 else -16)}" y="{py(y)+(25 if y == 1 else -15)}" text-anchor="{"start" if x == 0 else "end"}" font-size="18" fill="white" stroke="#182b43" stroke-width=".4">{"✓" if correct else "✗"}</text>')
+            parts.append('<text x="180" y="90" text-anchor="middle" fill="white">прогноз 0</text><text x="380" y="90" text-anchor="middle" fill="white">прогноз 1</text>')
         for tick in [0,.5,1]:
             parts.append(f'<text x="{px(tick)}" y="485" text-anchor="middle">{tick:g}</text><text x="60" y="{py(tick)+5}" text-anchor="end">{tick:g}</text>')
         for i in range(100):
             parts.append(f'<rect x="525" y="{460-4*(i+1)}" width="20" height="4.1" fill="{color((i+.5)/100)}"/>')
-        parts.append('<text x="552" y="65">1+</text><text x="552" y="265">0.5</text><text x="552" y="465">0</text>')
-        parts.append('<text x="280" y="515" text-anchor="middle">x₁</text><text x="28" y="260">x₂</text><text x="320" y="545" text-anchor="middle">● клас 1    ◆ клас 0    – – поріг s = 0.5</text></g></svg>')
+        parts.append('<text x="552" y="65">1</text><text x="552" y="265">0.5</text><text x="552" y="465">0</text>')
+        parts.append('<text x="280" y="515" text-anchor="middle">x₁</text><text x="28" y="260">x₂</text><text x="320" y="545" text-anchor="middle">● клас 1    ◆ клас 0</text></g></svg>')
         Path(f"figures/{name}.svg").write_text(''.join(parts), encoding="utf-8")
 
 
